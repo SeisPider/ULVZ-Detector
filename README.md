@@ -4,7 +4,7 @@ This project is under developing.
 
 ## ULVZ-Detector
 
-Computational seismologu class project aiming at developing tools needed in 
+Computational seismology class project aiming at developing tools needed in 
 detecting ULVZ from multiple seismic phases
 
 ## Before you begin
