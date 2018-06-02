@@ -40,16 +40,6 @@
         <networkCode>TA</networkCode>
         <bandCode>B</bandCode>
 		<printlineChannelProcess/>
-		<stationBoxArea>
-		  <latitudeRange>
-			<min>35</min>
-			<max>38</max>
-		  </latitudeRange>
-		  <longitudeRange>
-			<min>-97</min>
-			<max>-91</max>
-		  </longitudeRange>
-		</stationBoxArea>
     </networkArm>
     <waveformArm>
         <distanceRange>
