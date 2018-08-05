@@ -4,24 +4,24 @@
         <fdsnEvent>
             <originTimeRange>
                 <startTime>
-                    <year>2010</year>
-                    <month>8</month>
-                    <day>1</day>
+                    <year>2011</year>
+                    <month>3</month>
+                    <day>10</day>
                 </startTime>
                 <endTime>
-                    <year>2012</year>
-                    <month>1</month>
-                    <day>1</day>
+                    <year>2011</year>
+                    <month>3</month>
+                    <day>10</day>
                 </endTime>
             </originTimeRange>
             <magnitudeRange>
-                <min>6</min>
+                <min>5</min>
             </magnitudeRange>
         </fdsnEvent>
         <originOR>
             <originAND>
                 <magnitudeRange>
-                    <min>6</min>
+                    <min>5</min>
                 </magnitudeRange>
                 <originDepthRange>
                     <unit>KILOMETER</unit>
@@ -30,7 +30,7 @@
                 </originDepthRange>
             </originAND>
             <magnitudeRange>
-                <min>6</min>
+                <min>5</min>
             </magnitudeRange>
         </originOR>
         <printlineEventProcess/>
@@ -44,8 +44,8 @@
     <waveformArm>
         <distanceRange>
             <unit>DEGREE</unit>
-            <min>100</min>
-            <max>110</max>
+            <min>134</min>
+            <max>141</max>
         </distanceRange>
         <phaseRequest>
             <model>prem</model>
