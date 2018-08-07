@@ -42,3 +42,5 @@ class Mesh2DArea(object):
         lats = np.arange(self.latbox[0], self.latbox[1], grid)
         lons = np.arange(self.lonbox[0], self.lonbox[1], grid)
         self.latlat, self.lonlon = np.meshgrid(lats, lons)
+        # set shape
+        self.shape = self.latlat.shape
