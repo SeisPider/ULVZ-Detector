@@ -17,6 +17,7 @@ from .distaz import DistAz
 from . import logger
 from .utils import obtain_travel_time
 from obspy.taup import TauPyModel
+import multiprocessing as mp 
 
 class BackProjector(object):
     """Object to project the amplitude back to the source area
@@ -71,7 +72,7 @@ class BackProjector(object):
         # Project each trace to each source patch
         amppatchs = []
         for idx, item in enumerate(self.st):
-            onepatch = self._project_onetr(item, marker, phase, mesh, idx, **kwargs)
+            onepatch = self._project_onetr(item, mesh, marker, phase, idx, **kwargs)
             amppatchs.append(onepatch)
         amppatchs = np.array(amppatchs)
         return amppatchs 
@@ -188,7 +189,7 @@ class BackProjector(object):
         return gcarcs1d.reshape(mesh.shape), times1d.reshape(mesh.shape)
 
 
-    def _project_onetr(self, trace, mesh, marker, phase, source_region, 
+    def _project_onetr(self, trace, mesh, marker, phase, 
                        tridx, toenv=True, norm=True):
         """same as the func. name
 
@@ -239,7 +240,7 @@ class BackProjector(object):
         # Interpolate to obtain the travel time from each patch to 
         # this receiver
         time_table = self.scatter_receiver_time
-        amppatchs =  np.array([check_amp(time_table[latidx][lonidx]+shift, timescale, data) 
+        amppatchs =  np.array([check_amp(time_table[tridx][latidx][lonidx]+shift, timescale, data) 
                                for latidx in range(mesh.shape[0])
                                for lonidx in range(mesh.shape[1])])
-        return amppatchs.reshape(mesh.shape)
+        return amppatchs

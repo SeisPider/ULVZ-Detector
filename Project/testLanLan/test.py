@@ -21,20 +21,16 @@ import matplotlib.pyplot as plt
 from obspy import read
 
 if __name__ == '__main__':
-    mesh = Mesh2DArea(39, 50, 75, 95)
+    mesh = Mesh2DArea(37, 53, 71, 100)
     mesh.standard_mesh(grid=0.1)
-    st = read("../../Data/LanLan/20141120031926_20150126044310/2014*.t.SAC")
+    st = read("../../Data/LanLan/20141120031926_20150126044310/*.CC.SAC")
     bp = BackProjector(st)
-    marker, phase, grid ="t1", ["P"], 0.1
-    amppatchs = bp.back_projection(marker, phase, mesh, depth=13, 
-                                   table_grid=grid, toenv=True, norm=True)
-    
-    aveamp = np.zeros(mesh.shape)
-    for item in amppatchs:
-        aveamp += item
-    aveamp /= len(amppatchs)
-    
-    shape = mesh.lonlon.shape
+    marker, phase, grid ="t2", ["S"], 0.1
+    amppatchs = bp.back_projection(marker, phase, mesh, depth=0.0, 
+                                   table_grid=grid, toenv=False, 
+                                   norm=False)
+    shape = mesh.shape
+    aveamp = np.nanmean(amppatchs, axis=0)
     plt.contourf(mesh.latlat, mesh.lonlon, aveamp.reshape(shape), 
                  cmap=plt.get_cmap('seismic'),
                  extend='both', alpha=0.5)
