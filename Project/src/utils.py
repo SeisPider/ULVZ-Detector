@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 #      Purpose: Store project related methods
 #       Status: Developing
 #   Dependence: Python 3.6
@@ -9,21 +9,50 @@
 #       Author: Xiao Xiao, https://github.com/SeisPider
 #        Email: xiaox.seis@gmail.com
 #     Copyright (C) 2017-2018 Xiao Xiao
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 import numpy as np
+from copy import deepcopy
+from easyprocess import EasyProcess
+
+
 def obtain_travel_time(taupmodel, sdp, rdp, gcarc, pha):
     """same as func. name
     """
+
     try:
+        # Check units
+        if sdp > 7000:
+            sdp /= 1000  # Tranfer it to km.
+        if rdp > 7000:
+            rdp /= 1000  # Tranfer it to km.
+
         # If the scatter is deeper than the source, revert the station
         # and source characteristics
-        if sdp > rdp:
-            temp = sdp
-            rdp = sdp
-            sdp = temp
-        return taupmodel.get_travel_times(source_depth_in_km=sdp,
-                                          receiver_depth_in_km=rdp,
-                                          distance_in_degree=gcarc, 
-                                          phase_list=pha)[0].time
+        if sdp < rdp:
+            temp = deepcopy(rdp)
+            rdp = deepcopy(sdp)
+            sdp = deepcopy(temp)
+        # Compute the first arrival
+        
+        p = EasyProcess('taup_time -mod "{}" -deg "{}" -h "{}" --stadepth "{}" --ph "{}" --time'.format(
+            "prem", gcarc, sdp, rdp, pha)).call()
+        times = [float(x) for x in p.stdout.strip().split()]
+        return times[0]
     except IndexError:
         return np.nan
+
+
+def isolate(scale, left_bound, right_bound):
+    """isolate the scale ruler based on given left and right bounds
+
+    Parameters
+    ==========
+    scale: numpy.array
+        Scale ruler
+    left_bound: float
+        The left boundary
+    right_bound: float
+        The right boundary
+    """
+    condition = (scale >= left_bound) * (scale <= right_bound)
+    return np.where(condition)
