@@ -36,9 +36,13 @@ def obtain_travel_time(taupmodel, sdp, rdp, gcarc, pha):
         
         p = EasyProcess('taup_time -mod "{}" -deg "{}" -h "{}" --stadepth "{}" --ph "{}" --time'.format(
             "prem", gcarc, sdp, rdp, pha)).call()
-        times = [float(x) for x in p.stdout.strip().split()]
-        return times[0]
+        # p = EasyProcess('taup_time -mod "{}" -deg "{}" -h "{}" --stadepth "{}"  --time'.format(
+        #     "prem", gcarc, sdp, rdp)).call()
+        time = [float(x) for x in p.stdout.strip().split()][0]
+        # print(rdp, sdp, gcarc, pha)
+        return time
     except IndexError:
+        # print(rdp, sdp, gcarc, pha)
         return np.nan
 
 

@@ -4,24 +4,34 @@
         <fdsnEvent>
             <originTimeRange>
                 <startTime>
-                    <year>2007</year>
-                    <month>08</month>
-                    <day>08</day>
+                    <year>2011</year>
+                    <month>1</month>
+                    <day>1</day>
                 </startTime>
                 <endTime>
-                    <year>2007</year>
-                    <month>08</month>
-                    <day>08</day>
+                    <year>2018</year>
+                    <month>1</month>
+                    <day>1</day>
                 </endTime>
             </originTimeRange>
             <magnitudeRange>
-                <min>6</min>
+                <min>5.5</min>
             </magnitudeRange>
+            <boxArea>
+                <latitudeRange>
+                    <min>50</min>
+                    <max>70</max>
+                </latitudeRange>
+                <longitudeRange>
+                    <min>-170</min>
+                    <max>-130</max>
+                </longitudeRange>
+            </boxArea>
         </fdsnEvent>
         <originOR>
             <originAND>
                 <magnitudeRange>
-                    <min>6</min>
+                    <min>5.5</min>
                 </magnitudeRange>
                 <originDepthRange>
                     <unit>KILOMETER</unit>
@@ -30,15 +40,16 @@
                 </originDepthRange>
             </originAND>
             <magnitudeRange>
-                <min>6</min>
+                <min>5.5</min>
             </magnitudeRange>
         </originOR>
         <printlineEventProcess/>
     </eventArm>
     <networkArm>
         <fdsnStation/>
-        <networkCode>TA</networkCode>
+        <networkCode>YT</networkCode>
         <bandCode>B</bandCode>
+        <channelCode>BHZ</channelCode>
 		<printlineChannelProcess/>
             <sacPoleZeroWriter/>
             <responseWriter>
@@ -53,12 +64,12 @@
         </distanceRange>
         <phaseRequest>
             <model>prem</model>
-            <beginPhase>ttp</beginPhase>
+            <beginPhase>PKIKP</beginPhase>
             <beginOffset>
                 <unit>SECOND</unit>
                 <value>-120</value>
             </beginOffset>
-            <endPhase>ttp</endPhase>
+            <endPhase>PKIKP</endPhase>
             <endOffset>
                 <unit>SECOND</unit>
                 <value>300</value>

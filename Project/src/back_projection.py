@@ -28,7 +28,7 @@ import numpy as np
 from .distaz import DistAz
 from . import logger
 from .utils import obtain_travel_time, isolate
-from obspy.taup import TauPyModel
+import matplotlib.pyplot as plt
 from scipy import interpolate
 
 
@@ -50,8 +50,8 @@ class BackProjector(object):
         self.model = model
         self.st = stream
 
-    def back_projection(self, marker, phases, mesh, depth=0.0,
-                        table_grid=0.01, **kwargs):
+    def back_projection(self, marker, phases, mesh, depth=0.0, table_grid=0.1,
+                        **kwargs):
         """Project the amplitude to the source area
 
         Parameters
@@ -65,6 +65,11 @@ class BackProjector(object):
             source_receiver_phase), e.g. (P, PKIKP, PKIKP).
         mesh: src.mesh.Mesh2DArea obj.
             specified source region
+        depth: float
+            Assumed scatter depth
+        table_grid: float
+           The minimum geographical grid in computing travel time from 
+           scatters to receivers
         """
         # Obtain phases
         source_scatter_phase, scatter_receiver_phase, source_receiver_phase = phases
@@ -72,7 +77,7 @@ class BackProjector(object):
         # Append source location to obj.
         self.slon, self.slat, self.sdp = self._check_source()
 
-        # Obtain time of the repeat source to each traces
+        # Obtain time of the source to each traces
         tempresult = self._source_receiver_time_table(source_receiver_phase)
         self.source_receiver_gcarcs, self.source_receiver_time = tempresult
 
@@ -83,7 +88,7 @@ class BackProjector(object):
 
         # Compute the travel time from all possible scatter locations to each receivers
         tempresult = self._scatter_receiver_time_table(
-            mesh, scatter_receiver_phase, depth, table_grid)
+            mesh, scatter_receiver_phase, depth, distgrid=table_grid)
         self.scatter_receiver_gcarcs, self.scatter_receiver_time = tempresult
 
         # Project each trace to each source patch
@@ -101,7 +106,7 @@ class BackProjector(object):
 
         def npred(y): return (y[:-2] == y[1:-1]).all()
         if ~(npred(lons) and npred(lats) and npred(dps)):
-            raise ValueError("Repeat source location inconsistence !")
+            raise ValueError("Source location inconsistence !")
 
         # Get the source location
         slon, slat, sdp = lons[0], lats[0], dps[0]
@@ -110,7 +115,7 @@ class BackProjector(object):
 
         return slon, slat, sdp
 
-    def _scatter_receiver_time_table(self, mesh, phase, depth, distgrid=0.1):
+    def _scatter_receiver_time_table(self, mesh, phase, depth, distgrid):
         """Compute travel time from the possible receiver location to 
         each receivers
 
@@ -140,7 +145,7 @@ class BackProjector(object):
                                for i in range(mesh.shape[0])
                                for j in range(mesh.shape[1])])
             dists.append(gcarcs.reshape(mesh.shape))
-
+        
         # Calculate travel time from minimum source-scatter distance to the maximum one
         gcarcs = np.array(dists).flatten()
         mindist, maxdist = gcarcs.min() - 2*distgrid, gcarcs.max() + 2*distgrid
@@ -157,11 +162,16 @@ class BackProjector(object):
             timestr = np.array([f(diststr[i][j]) for i in range(mesh.shape[0])
                                 for j in range(mesh.shape[1])])
             times.append(timestr.reshape(mesh.shape))
+            
+            rdp = 0.0  # Assume all stations locate at earth's surface
+            trtimes = np.array([obtain_travel_time(self.model, depth, rdp, x, phase)
+                                for x in gcarcs])
+            times.append(trtimes.reshape(mesh.shape))
         logger.info("Suc. Calculate distance table from scatter to receivers !")
         return dists, times
 
     def _source_receiver_time_table(self, phase):
-        """Compute travel time from the repeat source to traces
+        """Compute travel time from the source to traces
 
         Parameters
         ==========
@@ -169,12 +179,12 @@ class BackProjector(object):
             Specific the main phase, it used be distinguishable for TauP
         """
         logger.info(
-            "Calculating travel time from repeat source to stations ......")
+            "Calculating travel time from source to stations ......")
 
         # Obtain source location
         slon, slat, sdp = self.slon, self.slat, self.sdp
 
-        # Compute travel time from repeat source to each station
+        # Compute travel time from source to each station
 
         distrange = np.zeros(len(self.st))
         for idx, trace in enumerate(self.st):
@@ -189,7 +199,7 @@ class BackProjector(object):
         arrivals = np.array(
             [obtain_travel_time(self.model, sdp, rdp, x, phase) for x in distrange])
         logger.info(
-            "Suc. calculate travel time from repeat source to stations !")
+            "Suc. calculate travel times from source to stations !")
         return distrange, arrivals
 
     def _source_scatter_time_table(self, mesh, phase, depth):
@@ -220,7 +230,7 @@ class BackProjector(object):
     # def scatter_energe_computation(self,)
 
     def _project_traces(self, mesh, marker, norm=True, ahead=1,
-                        wind_pkikp=(-1, 2)):
+                        wind_pkikp=(-1, 2), debug=False):
         """same as the func. name
 
         Parameters
@@ -255,26 +265,44 @@ class BackProjector(object):
             sachd = item.stats.sac
 
             # Obtain the left and right boundary of precursor in time
-            time_table = (self.source_scatter_times + self.scatter_receiver_time[idx]).flatten()
-        
+            time_table = (self.source_scatter_times +
+                          self.scatter_receiver_time[idx]).flatten()
 
-            # Check the iztype
-            if sachd["iztype"] != 11:
-                raise ValueError(
-                    "Reference time of SAC file is not event source time")
+            # Construct time coordinate and obtain the reference time from
+            # markered phase arrival
+            reft, srctrtime = sachd[marker], self.source_receiver_time[idx]
             timescale = np.arange(sachd['b'], sachd['e'], sachd['delta'])
 
-            # Obtain the reference time from markered time
-            reft, srctrtime = sachd[marker], self.source_receiver_time[idx]
-
-            # Time table by considering shift between theoretical and the real arrival time
+            # Time table by considering shift between theoretical and
+            # the real arrival time
             shift = reft - srctrtime
+            time_table += shift
+            pre_begin, pre_end = np.nanmin(time_table), np.nanmax(time_table)
 
-            time_table +=  shift
-            pre_begin, pre_end = time_table.min(), time_table.max()-ahead
-            
-            # pre_end = min(pre_end, reft)
-            print(pre_begin, pre_end, reft)
+            # Apart main phase
+            pre_end = min(pre_end, reft)
+            # Ignore precursor phases several seconds ahead from the main arrival
+            # Which may be mispicking main phase energe
+            pre_end -= ahead
+            if debug:
+                # Compute travel time difference between scatter reflected wave and direct PKIKP
+                times = self.source_scatter_times + \
+                    self.scatter_receiver_time[idx]
+                times -= srctrtime
+
+                # Display time difference
+                plt.contourf(mesh.latlat, mesh.lonlon, times,
+                             cmap=plt.get_cmap('seismic'),
+                             extend='both', alpha=0.5)
+                plt.colorbar()
+                plt.show()
+
+                # Give out numerical results
+                print("Source-Scatter" + "*"*66)
+                print(self.source_scatter_times)
+                print("Scatter-Receiver" + "*"*64)
+                print(self.scatter_receiver_time[idx])
+                print(time_table)
 
             # Obtain envelope
             data = envelope(item.data)
@@ -288,7 +316,8 @@ class BackProjector(object):
 
             # Isolate and store the precursor part
             msk = isolate(timescale, pre_begin, pre_end)
-            subdict = {"time": timescale, "energe": data, "shift": shift}
+            subdict = {"time": timescale[msk],
+                       "energy": data[msk], "shift": shift}
             scatter_energe.append(subdict)
 
         # ################################################################################
@@ -299,7 +328,7 @@ class BackProjector(object):
         # should correct them to specific epicentral distance
 
         # Compute the maximum scatter energe
-        max_energe = np.array([x["energe"].max() for x in scatter_energe])
+        max_energe = np.array([x["energy"].max() for x in scatter_energe])
 
         # Obtain the trace index with the median epicentral distance
         dists = self.source_receiver_gcarcs
@@ -310,7 +339,7 @@ class BackProjector(object):
         # distance
         factor = max_energe[median_idx]/max_energe
         for idx, item in enumerate(scatter_energe):
-            item["energe"] *= factor[idx]
+            item["energy"] *= factor[idx]
 
         # ################################################################################
         # Back-projection
@@ -320,7 +349,11 @@ class BackProjector(object):
         def check_amp(timept, timescale, amp):
             """Check the amplitude at particular time
             """
+            # Time range constrains
             if timept < timescale.min() or timept > timescale.max():
+                return np.nan
+            # Time reliability constrains
+            if np.isnan(timept):
                 return np.nan
             idx = (np.abs(timescale - timept)).argmin()
             return amp[idx]
@@ -335,18 +368,22 @@ class BackProjector(object):
 
         # Loop over traces
         for idx, item in enumerate(scatter_energe):
-            timescale, energe, shift = item['time'], item['energe'], item['shift']
+            timescale, energe, shift = item['time'], item['energy'], item['shift']
             amppatch = np.zeros(mesh.shape)
 
             # loop over possible scatter locations
             for latidx in range(mesh.shape[0]):
                 for lonidx in range(mesh.shape[1]):
 
-                    # Check the amplitude
+                    # Check and retrive the amplitudes
                     extracted_amp = check_amp(
                         time_table[idx][latidx][lonidx]+shift, timescale, energe)
                     if ~np.isnan(extracted_amp):
                         hits[latidx][lonidx] += 1
                     amppatch[latidx][lonidx] = extracted_amp
             amppatchs.append(amppatch)
+
+            # Debug part
+            if debug:
+                print(amppatchs)
         return amppatchs, hits
