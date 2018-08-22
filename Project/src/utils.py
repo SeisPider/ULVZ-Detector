@@ -13,6 +13,7 @@
 import numpy as np
 from copy import deepcopy
 from easyprocess import EasyProcess
+from scipy import interpolate
 
 
 def obtain_travel_time(taupmodel, sdp, rdp, gcarc, pha):
@@ -32,17 +33,15 @@ def obtain_travel_time(taupmodel, sdp, rdp, gcarc, pha):
             temp = deepcopy(rdp)
             rdp = deepcopy(sdp)
             sdp = deepcopy(temp)
-        # Compute the first arrival
         
+        # Compute the first arrival
         p = EasyProcess('taup_time -mod "{}" -deg "{}" -h "{}" --stadepth "{}" --ph "{}" --time'.format(
-            "prem", gcarc, sdp, rdp, pha)).call()
+            taupmodel, gcarc, sdp, rdp, pha)).call()
         # p = EasyProcess('taup_time -mod "{}" -deg "{}" -h "{}" --stadepth "{}"  --time'.format(
         #     "prem", gcarc, sdp, rdp)).call()
         time = [float(x) for x in p.stdout.strip().split()][0]
-        # print(rdp, sdp, gcarc, pha)
         return time
     except IndexError:
-        # print(rdp, sdp, gcarc, pha)
         return np.nan
 
 
@@ -60,3 +59,18 @@ def isolate(scale, left_bound, right_bound):
     """
     condition = (scale >= left_bound) * (scale <= right_bound)
     return np.where(condition)
+
+def precursor_correction(dists):
+    """Calculate the prevursor amplitude correction
+
+    Parameters
+    ==========
+    dists: float
+        gcarc to obtain precursor amplitude correction  
+    """
+    # This observation were measured from Hedline,1997 with ruler
+    gcarcs = np.arange(131, 142)
+    factors = np.array([0.2, 0.3, 0.3, 0.5, 0.4, 0.5, 0.6, 0.8, 0.8, 1.1, 1.4])
+    precursor_corrector = interpolate.interp1d(gcarcs, factors, kind="cubic",
+                                               fill_value="extrapolate")
+    return precursor_corrector(dists)

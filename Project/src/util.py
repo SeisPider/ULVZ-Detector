@@ -3,6 +3,8 @@ from obspy.taup import TauPyModel
 from obspy.io.sac import SACTrace
 from . import logger
 
+import matplotlib.pyplot as plt
+
 def rms(x, axis=None):
     """ Function to calculate the root mean square value of an array.
     """
@@ -75,5 +77,6 @@ def seperate_channels(st, comps=["R", "T", "Z"]):
     for comp in comps:
         trs.append(st.select(component=comp)[0])
     return tuple(trs)
+
 
 

@@ -27,7 +27,7 @@ from obspy.signal.filter import envelope
 import numpy as np
 from .distaz import DistAz
 from . import logger
-from .utils import obtain_travel_time, isolate
+from .utils import obtain_travel_time, isolate, precursor_correction
 import matplotlib.pyplot as plt
 from scipy import interpolate
 
@@ -130,7 +130,8 @@ class BackProjector(object):
         distgrid: float
             Distance grid to compute travel time for later interpolating, in degree 
         """
-        logger.info("Calculating distance table ......")
+        logger.info(
+            "Calculating travel times from scatters to receivers ......")
         # estimate the distances
         dists = []
         latlat, lonlon = mesh.latlat, mesh.lonlon
@@ -145,7 +146,6 @@ class BackProjector(object):
                                for i in range(mesh.shape[0])
                                for j in range(mesh.shape[1])])
             dists.append(gcarcs.reshape(mesh.shape))
-        
         # Calculate travel time from minimum source-scatter distance to the maximum one
         gcarcs = np.array(dists).flatten()
         mindist, maxdist = gcarcs.min() - 2*distgrid, gcarcs.max() + 2*distgrid
@@ -162,12 +162,8 @@ class BackProjector(object):
             timestr = np.array([f(diststr[i][j]) for i in range(mesh.shape[0])
                                 for j in range(mesh.shape[1])])
             times.append(timestr.reshape(mesh.shape))
-            
-            rdp = 0.0  # Assume all stations locate at earth's surface
-            trtimes = np.array([obtain_travel_time(self.model, depth, rdp, x, phase)
-                                for x in gcarcs])
-            times.append(trtimes.reshape(mesh.shape))
-        logger.info("Suc. Calculate distance table from scatter to receivers !")
+        logger.info(
+            "Suc. calculate travel times from scatters to receivers !")
         return dists, times
 
     def _source_receiver_time_table(self, phase):
@@ -179,7 +175,7 @@ class BackProjector(object):
             Specific the main phase, it used be distinguishable for TauP
         """
         logger.info(
-            "Calculating travel time from source to stations ......")
+            "Calculating travel time from source to receivers ......")
 
         # Obtain source location
         slon, slat, sdp = self.slon, self.slat, self.sdp
@@ -199,7 +195,7 @@ class BackProjector(object):
         arrivals = np.array(
             [obtain_travel_time(self.model, sdp, rdp, x, phase) for x in distrange])
         logger.info(
-            "Suc. calculate travel times from source to stations !")
+            "Suc. calculate travel times from source to receivers !")
         return distrange, arrivals
 
     def _source_scatter_time_table(self, mesh, phase, depth):
@@ -214,6 +210,8 @@ class BackProjector(object):
         depth: float
             Specified scatter depth, in km
         """
+        logger.info(
+            "Calculating travel times from source to scatters ......")
         # Retrive location
         latlat, lonlon = mesh.latlat, mesh.lonlon
 
@@ -226,33 +224,32 @@ class BackProjector(object):
         # Compute the travel time from each source-scatter pair
         times1d = np.array([obtain_travel_time(self.model, self.sdp, depth, x, phase)
                             for x in gcarcs1d])
+        logger.info(
+            "Suc. calculate travel times from source to scatters !")
         return gcarcs1d.reshape(mesh.shape), times1d.reshape(mesh.shape)
-    # def scatter_energe_computation(self,)
 
-    def _project_traces(self, mesh, marker, norm=True, ahead=1,
-                        wind_pkikp=(-1, 2), debug=False):
+    def _project_traces(self, mesh, marker, min_factor=0.5, norm=True, env=False,
+                        correction=False, ahead=1, wind_main_phase=(-1, 2), debug=False):
         """same as the func. name
 
         Parameters
         ==========
         norm: Bool
             Determine wheather normalize the waveform
+        env: Bool
+           Determine to project envelope of the waveforms or not
+        correction: Bool
+           Determine to correct precursor amplitude with hedlin's work,ref. 1
         mesh: src.mesh.Mesh2DArea obj.
             specified possible scatter region
-        trace: ObsPy.Trace
-            waveform for projecting
         marker: str
-            marker of PKIKP arrival time
-        tridx: int
-            index of this trace in waveform Stream
+            marker of the main arrival time
         ahead: float
             Only waveforms at least this time ahead PKIKP marker are thought to be 
             precursor
-        wind_pkikp: tuple
-            Time window encloses the PKIKP phase which is relative time refering marker 
-            time
-        ref_gcarc: None or float
-            The reference epicentral distance where the scatter energy will be corrected to  
+        wind_main_phase: tuple
+            Time window encloses the main phase which is relative time refering to marker 
+            time, needed when using it to compute the scatter energe
         """
         # ################################################################################
         # Obtain the scatter energe
@@ -282,7 +279,7 @@ class BackProjector(object):
             # Apart main phase
             pre_end = min(pre_end, reft)
             # Ignore precursor phases several seconds ahead from the main arrival
-            # Which may be mispicking main phase energe
+            # Which may be mispicking of main phase energe
             pre_end -= ahead
             if debug:
                 # Compute travel time difference between scatter reflected wave and direct PKIKP
@@ -305,12 +302,16 @@ class BackProjector(object):
                 print(time_table)
 
             # Obtain envelope
-            data = envelope(item.data)
+            if env:
+                data = envelope(item.data)
+            else:
+                data = item.data
 
             # Norm waveform
             if norm:
-                # Take the maximum amplitude in enclosed window to be that of PKIKP
-                lftbound, rightbound = reft+wind_pkikp[0], reft+wind_pkikp[1]
+                # Take the maximum amplitude in enclosed window to be that of the main phase
+                lftbound, rightbound = reft + \
+                    wind_main_phase[0], reft+wind_main_phase[1]
                 msk = isolate(timescale, lftbound, rightbound)
                 data /= data[msk].max()
 
@@ -327,19 +328,11 @@ class BackProjector(object):
         # to the epicentral distance increasing. Thus, for energe staking, we
         # should correct them to specific epicentral distance
 
-        # Compute the maximum scatter energe
-        max_energe = np.array([x["energy"].max() for x in scatter_energe])
-
-        # Obtain the trace index with the median epicentral distance
-        dists = self.source_receiver_gcarcs
-        median_idx = np.argsort(dists)[len(dists)//2]
-        self.ref_gcarc = dists[median_idx]
-
-        # correct all scatter energe to the trace with median epicentral
-        # distance
-        factor = max_energe[median_idx]/max_energe
-        for idx, item in enumerate(scatter_energe):
-            item["energy"] *= factor[idx]
+        # Use precursor amplitude correction from hedline's paper
+        if correction:
+            factor = precursor_correction(self.source_receiver_gcarcs)
+            for idx, item in enumerate(scatter_energe):
+                item["energy"] /= factor[idx]
 
         # ################################################################################
         # Back-projection
